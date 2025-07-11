@@ -3,42 +3,68 @@ package main
 import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	_ "github.com/mattn/go-sqlite3"
-	"log"
+	"log/slog"
+	"myNote3/internal/config"
 	"myNote3/internal/handler"
-	"myNote3/internal/noteStruct"
+	"myNote3/internal/storage"
+	"myNote3/internal/structFlag"
+	"os"
 )
 
 func main() {
 	token := "***REMOVED***"
+
 	Run(token)
 }
+
+// возможно лучше перенести log и cfg в main
 func Run(token string) {
-	GlobalStruct := noteStruct.StructWithNote{
-		map[int64]*noteStruct.Note{},
-	}
-	GlobalStruct.InitFromDB() // writing in GlobalStruct whole table
+	IDFlag := &structFlag.StructMapCheck{
+		IDPersonFlag: make(map[int64]*structFlag.BoolStruct),
+	} //интересно почему при записи второй структуры обычно адрес пакета structFlag и название
+	//  так-же почему именно адрес на неё . Веть что бы изменятб вроде нужен &
+
+	log := setupLogger("debug")                    //это запуск проверки err. Что бы писать log.___
+	cfg := config.MustLoad()                       // это путь к sql
+	db, err := storage.CreateGorm(cfg.StoragePath) //создали базу данных черее Gorm
 
 	bot, err := tg.NewBotAPI(token)
 	if err != nil {
-		log.Panic(err)
+		log.Error("ошибка при создание бота" + err.Error())
 	}
 
 	bot.Debug = false
 
 	u := tg.NewUpdate(0)
-	//u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
 
-	// Loop through each update.
-	//for update := range updates {
-	//		handler.MainHandler(bot, update, &GlobalStruct)
-
-	//}
-	for range 10 {
-		update := <-updates
-		handler.MainHandler(bot, update, &GlobalStruct)
+	for update := range updates {
+		handler.MainHandler(bot, update, db, IDFlag) //интересно почему тут надо со звездой передовать db или ненадо
 	}
+
 }
 
-// сделать удаленеие (должно появиться перечень заметиок с номером) (ведите номер для удаления) (рефакториг)
+func setupLogger(env string) *slog.Logger {
+	var log *slog.Logger
+
+	switch env {
+	case "info":
+		log = slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}), //error and warn
+		)
+	case "debug":
+		log = slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}), //all
+		)
+	case "error":
+		log = slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}), //error
+		)
+	case "warn":
+		log = slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}), //error and warn
+		)
+	}
+	return log
+}

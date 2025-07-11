@@ -4,29 +4,33 @@ import (
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
-	"myNote3/internal/DB/saves"
 	"myNote3/internal/button"
-	"myNote3/internal/noteStruct"
-	"strconv"
+	"myNote3/internal/storage"
+	"myNote3/internal/structFlag"
 )
 
-func MainHandler(bot *tg.BotAPI, update tg.Update, GlobalStruct *noteStruct.StructWithNote) {
-	for _, vale := range GlobalStruct.CreateNoteMap {
-		fmt.Println(vale)
-	}
+// идея для будущего. Возможно заменить флажки на поиск по sql
+func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *structFlag.StructMapCheck) {
+	//как заменить флажок - не получилось. Пришлось заново создавать структуру
 	if update.Message != nil {
-		ID := update.Message.Chat.ID
-		if _, ok := GlobalStruct.CreateNoteMap[ID]; !ok {
-			GlobalStruct.CreateNoteMap[ID] = &noteStruct.Note{make([]string, 0), false, false, make([]int64, 0)}
+		IDchat := update.Message.Chat.ID
+		err := db.AddUsers(IDchat) //метод который добавляет пользователей по id
+		_ = err                    //отправить ошибку потом в main
+
+		if _, ok := flag.IDPersonFlag[IDchat]; !ok {
+			flag.IDPersonFlag[IDchat] = &structFlag.BoolStruct{ //как понять что второе щзначение где флаги это полное имя типа структуры
+				CheckFlag: false,
+				DeletFlag: false,
+			}
 		} else {
-			if GlobalStruct.CreateNoteMap[ID].Check == true {
+			if flag.IDPersonFlag[IDchat].CheckFlag == true {
+				//ошибка если у нас ещё нет никаких записей - а потом мы менаем полня на ture у ничего (nil)
 				text := update.Message.Text
-				GlobalStruct.CreateNoteMap[ID].NoteForPerson = append(GlobalStruct.CreateNoteMap[ID].NoteForPerson, text)
+				flag.IDPersonFlag[IDchat].CheckFlag = false
 
-				GlobalStruct.CreateNoteMap[ID].Check = false
+				errs := db.AddNote(IDchat, text)
+				_ = errs //вернуть ошибку в main
 
-				saves.NoteToDB(ID, text, GlobalStruct)
-				//TODO добавить сообщение об успешном создании заметки
 				message := tg.NewMessage(update.Message.Chat.ID, "ваша заметка создана")
 				_, err := bot.Send(message)
 				if err != nil {
@@ -34,70 +38,43 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, GlobalStruct *noteStruct.Stru
 				}
 
 			}
-		}
-		if update.Message.Text == "/start" {
-			ShowButton(bot, update, button.RowButton, "выберите действие")
-		}
-		if GlobalStruct.CreateNoteMap[ID].FlagDeletMessage == true {
-			test(bot, update, GlobalStruct, ID)
-		}
 
+			if update.Message.Text == "/start" {
+				ShowButton(bot, update, button.RowButton, "выберите действие")
+			}
+		}
+		//if flag.IDPersonFlag[IDchat].DeletFlag == true {
+		//test(bot, update, GlobalStruct, IDchat) //засунуть туда метод для удаления из базы данных
+		//}
 	}
 	if update.CallbackQuery != nil {
-		ID := update.CallbackQuery.Message.Chat.ID
-		if _, ok := GlobalStruct.CreateNoteMap[ID]; !ok {
-			GlobalStruct.CreateNoteMap[ID] = &noteStruct.Note{make([]string, 0), false, false, make([]int64, 0)}
-		}
+		IDbutton := update.CallbackQuery.Message.Chat.ID
+
 		switch update.CallbackQuery.Data {
 		case "createNote":
-			GlobalStruct.CreateNoteMap[ID].Check = true
+			flag.IDPersonFlag[IDbutton].CheckFlag = true
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите вашу заметку и отправьте")
 			_, _ = bot.Request(callback)
 
-		case "showNote":
+		case "showNote": //сюда метод показа заметок из базы
 			callback := tg.NewCallback(update.CallbackQuery.ID, "")
 			if _, err := bot.Request(callback); err != nil {
 				log.Println("Ошибка при отправке callback:", err)
 			}
+			resultNotes, err := db.ShowNote(IDbutton)
+			_ = err
 
-			if len(GlobalStruct.CreateNoteMap[ID].NoteForPerson) == 0 {
-				message := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, "вы еще не сохранили ни одной заметки")
-				_, _ = bot.Request(message)
-				return
-			}
-
-			for i, v := range GlobalStruct.CreateNoteMap[ID].NoteForPerson {
-				returnSprinf2 := fmt.Sprintf("%v) %v", i, v)
-				sendBack := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, returnSprinf2)
+			for i, v := range resultNotes {
+				retur := fmt.Sprintf("%v) %v", i, v)
+				sendBack := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, retur)
 				_, err := bot.Send(sendBack)
 				if err != nil {
 					log.Panic(err, "Ошибка в callbackHandler")
 				}
 			}
-
-		case "deleteNote":
-			if len(GlobalStruct.CreateNoteMap[ID].NoteForPerson) == 0 {
-				message := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, "отсутствуют заметки для удаления")
-				_, _ = bot.Request(message)
-				callback := tg.NewCallback(update.CallbackQuery.ID, "")
-				if _, err := bot.Request(callback); err != nil {
-					log.Println("Ошибка при отправке callback:", err)
-				}
-				return
-			}
-			GlobalStruct.CreateNoteMap[ID].FlagDeletMessage = true
-			//другой флаг вырубить (ошибка если нажал две кнопки) GlobalStruct.CreateNoteMap[ID]. = false
-			callback := tg.NewCallback(update.CallbackQuery.ID, "Напишите номер заметки, которую желаете удалить ")
-			_, _ = bot.Request(callback)
-			if _, err := bot.Request(callback); err != nil {
-				panic(err)
-			}
-
 		}
-
 	}
 }
-
 func ShowButton(bot *tg.BotAPI, update tg.Update, rowButton []tg.InlineKeyboardButton, text string) {
 	if update.Message != nil {
 		message := tg.NewMessage(update.Message.Chat.ID, text)
@@ -106,48 +83,5 @@ func ShowButton(bot *tg.BotAPI, update tg.Update, rowButton []tg.InlineKeyboardB
 		if err != nil {
 			log.Panic(err)
 		}
-	}
-}
-
-func test(bot *tg.BotAPI, update tg.Update, GlobalStruct *noteStruct.StructWithNote, ID int64) {
-	text := update.Message.Text
-
-	number, err := strconv.Atoi(text)
-	if err != nil {
-		message := tg.NewMessage(update.Message.Chat.ID, "Ошибка: В следующий раз введите номер заметки в виде числа")
-		_, _ = bot.Send(message)
-		return
-	}
-
-	note, ok := GlobalStruct.CreateNoteMap[ID]
-	if !ok {
-		//fmt.Println("Пользователь не найден")
-		message := tg.NewMessage(update.Message.Chat.ID, "Пользователь не найден")
-		_, err := bot.Send(message)
-		if err != nil {
-			log.Println(err)
-		}
-		return
-	}
-
-	if number < 0 || number >= len(note.NoteForPerson) {
-		//fmt.Println("Неверный индекс")
-		message := tg.NewMessage(update.Message.Chat.ID, "Неверный номер пользователя")
-		_, err := bot.Send(message)
-		if err != nil {
-			log.Println(err)
-		}
-		return
-	}
-
-	// Удаляем элемент по индексу из NoteForPerson
-	note.NoteForPerson = append(note.NoteForPerson[:number], note.NoteForPerson[number+1:]...)
-	note.FlagDeletMessage = false
-	saves.DeleteNoteFromDB(GlobalStruct, ID, number)
-	texts := fmt.Sprintf("Ваши заметка № %v удалена", number)
-	message := tg.NewMessage(update.Message.Chat.ID, texts)
-	_, err = bot.Send(message)
-	if err != nil {
-		log.Println(err)
 	}
 }
