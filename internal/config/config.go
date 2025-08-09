@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	StoragePath string `yaml:"StoragePath"`
+	Token       string `env:"TOKEN"`
 }
 
 func MustLoad() *Config {
@@ -21,6 +22,3 @@ func MustLoad() *Config {
 	}
 	return &cfg
 }
-
-//вопрос log который тут использут мой из main или другой = нет это другой, видно это через import.
-// 2 варианта или в main обработать ошибку (этот) или сэда передать log

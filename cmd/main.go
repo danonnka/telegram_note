@@ -12,25 +12,21 @@ import (
 )
 
 func main() {
-	token := "7632907437:AAFKWnffg7nxvu88xrQ4N_T8X_SBaAyEgbM"
-
-	Run(token)
+	Run()
 }
 
-// возможно лучше перенести log и cfg в main
-func Run(token string) {
+func Run() {
 	IDFlag := &structFlag.StructMapCheck{
 		IDPersonFlag: make(map[int64]*structFlag.BoolStruct),
-	} //интересно почему при записи второй структуры обычно адрес пакета structFlag и название
-	//  так-же почему именно адрес на неё . Веть что бы изменятб вроде нужен &
+	}
 
-	log := setupLogger("debug")                    //это запуск проверки err. Что бы писать log.___
-	cfg := config.MustLoad()                       // это путь к sql
-	db, err := storage.CreateGorm(cfg.StoragePath) //создали базу данных черее Gorm
-
+	logger := setupLogger("debug")                       //это запуск проверки err. Что бы писать log.___
+	cfg := config.MustLoad()                             // это путь к sql
+	db, err := storage.NewSqliteStorage(cfg.StoragePath) //создали базу данных черее Gorm
+	token := cfg.Token
 	bot, err := tg.NewBotAPI(token)
 	if err != nil {
-		log.Error("ошибка при создание бота" + err.Error())
+		logger.Error("ошибка при создание бота" + err.Error())
 	}
 
 	bot.Debug = false
@@ -38,9 +34,12 @@ func Run(token string) {
 	u := tg.NewUpdate(0)
 
 	updates := bot.GetUpdatesChan(u)
-
+	var db1 storage.Storage = db // db1 = тип интерфейс со значениями структуры
 	for update := range updates {
-		handler.MainHandler(bot, update, db, IDFlag) //интересно почему тут надо со звездой передовать db или ненадо
+		err := handler.MainHandler(bot, update, &db1, IDFlag)
+		if err != nil {
+			logger.Error(err.Error())
+		}
 	}
 
 }
