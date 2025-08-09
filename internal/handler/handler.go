@@ -9,22 +9,21 @@ import (
 	"myNote3/internal/structFlag"
 )
 
-// идея для будущего. Возможно заменить флажки на поиск по sql
-func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *structFlag.StructMapCheck) {
-	//как заменить флажок - не получилось. Пришлось заново создавать структуру
+// Ваш *SqliteStorage реализует Storage (имеет все нужные методы), поэтому его можно передать
+// Он ожидает любой тип, который реализует интерфейс Storage
+func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *structFlag.StructMapCheck) error {
 	if update.Message != nil {
 		IDchat := update.Message.Chat.ID
-		err := db.AddUsers(IDchat) //метод который добавляет пользователей по id
-		_ = err                    //отправить ошибку потом в main
+		err := (*db).AddUsers(IDchat) //метод который добавляет пользователей по id
+		_ = err                       //отправить ошибку потом в main
 
 		if _, ok := flag.IDPersonFlag[IDchat]; !ok {
-			flag.IDPersonFlag[IDchat] = &structFlag.BoolStruct{ //как понять что второе щзначение где флаги это полное имя типа структуры
+			flag.IDPersonFlag[IDchat] = &structFlag.BoolStruct{
 				CheckFlag: false,
 				DeletFlag: false,
 			}
 		} else {
 			if flag.IDPersonFlag[IDchat].CheckFlag == true {
-				//ошибка если у нас ещё нет никаких записей - а потом мы менаем полня на ture у ничего (nil)
 				text := update.Message.Text
 				flag.IDPersonFlag[IDchat].CheckFlag = false
 
@@ -56,7 +55,7 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *st
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите вашу заметку и отправьте")
 			_, _ = bot.Request(callback)
 
-		case "showNote": //сюда метод показа заметок из базы
+		case "showNote":
 			callback := tg.NewCallback(update.CallbackQuery.ID, "")
 			if _, err := bot.Request(callback); err != nil {
 				log.Println("Ошибка при отправке callback:", err)
@@ -65,7 +64,7 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *st
 			_ = err
 
 			for i, v := range resultNotes {
-				retur := fmt.Sprintf("%v) %v", i, v)
+				retur := fmt.Sprintf("%v) %v", i, v.Not)
 				sendBack := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, retur)
 				_, err := bot.Send(sendBack)
 				if err != nil {
@@ -74,6 +73,7 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *st
 			}
 		}
 	}
+	return nil
 }
 func ShowButton(bot *tg.BotAPI, update tg.Update, rowButton []tg.InlineKeyboardButton, text string) {
 	if update.Message != nil {

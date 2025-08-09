@@ -1,9 +1,9 @@
 package storage
 
 type Users struct {
-	Id         int64   `gorm:"primaryKey"`
-	TelegramID int64   `gorm:"uniqueIndex"`
-	Note       []Notes `gorm:"foreignKey:UserID"`
+	Id           int64   `gorm:"primaryKey"`
+	TelegramID   int64   `gorm:"uniqueIndex"`
+	ConnectNotes []Notes `gorm:"foreignKey:UserID"`
 } //думаю надо слайс заметок
 
 type Notes struct {
