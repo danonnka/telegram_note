@@ -1,35 +1,44 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"strconv"
 )
 
 type Storage interface {
 	AddUsers(ID int64) error
 	AddNote(id int64, note string) error
 	ShowNote(id int64) ([]Notes, error)
+	DeletNote(id int64, numberNote string) error
 }
 type SqliteStorage struct {
-	db *gorm.DB //теперь если мы изменим на другую таблицу это будет всё равно работать
-} //              так-как эта структура реализует все необходимые методы для интерфейса
+	db *gorm.DB
+}
 
 func NewSqliteStorage(s string) (*SqliteStorage, error) {
 	db, err := gorm.Open(sqlite.Open(s))
 	if err != nil {
 		return nil, err
 	}
-	db.AutoMigrate(&Users{}, &Notes{})
+	err = db.AutoMigrate(&Users{}, &Notes{})
+	if err != nil {
+		return nil, err
+	}
 	return &SqliteStorage{db: db}, nil
 }
 
 func (s SqliteStorage) AddUsers(ID int64) error {
 	var user Users
-	if err := s.db.First(&user, "telegram_id = ?", ID).Error; err == nil {
+	err := s.db.First(&user, "telegram_id = ?", ID).Error
+	if err == nil {
 		return nil
 	}
-
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	s.db.Create(&Users{
 		TelegramID: ID,
 	})
@@ -41,16 +50,17 @@ func (s SqliteStorage) AddUsers(ID int64) error {
 }
 
 func (s SqliteStorage) AddNote(id int64, note string) error {
-	var us Users // нужно что бы создать обьект, в который загрузим данные из базы.
+	var us Users
 	tx := s.db.First(&us, "Telegram_ID", id)
 	if tx.Error != nil {
-		return s.db.Error
+		return tx.Error
 	}
-	//нужен us что бы взять от туда номер пользователя и добавитиь этот номер к заметки
+
 	n := Notes{
 		UserID: us.Id,
 		Not:    note,
 	}
+
 	if err := s.db.Create(&n).Error; err != nil {
 		return err
 	}
@@ -66,7 +76,22 @@ func (s SqliteStorage) ShowNote(id int64) ([]Notes, error) {
 	return us.ConnectNotes, nil
 
 }
+func (s SqliteStorage) DeletNote(id int64, numberNote string) error {
+	number, err := strconv.Atoi(numberNote)
+	if err != nil {
+		return fmt.Errorf("пожалуйста, введите номер заметки цифрами")
+	}
 
-//preload = "Когда ты загрузишь пользователя, также заранее загрузи его связанные Notes".
-
-//для удаления заметок
+	if number <= 0 {
+		return fmt.Errorf("номер заметки должен быть положительным числом")
+	}
+	var user Users
+	if err := s.db.First(&user, "telegram_id = ?", id).Error; err != nil {
+		return err
+	}
+	result := s.db.Where("user_id = ? AND id = ?", user.Id, number).Delete(&Notes{})
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("неверный номер заметки")
+	}
+	return nil
+}

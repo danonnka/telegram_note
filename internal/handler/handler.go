@@ -3,51 +3,88 @@ package handler
 import (
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"log"
 	"myNote3/internal/button"
 	"myNote3/internal/storage"
 	"myNote3/internal/structFlag"
 )
 
-// Ваш *SqliteStorage реализует Storage (имеет все нужные методы), поэтому его можно передать
-// Он ожидает любой тип, который реализует интерфейс Storage
-func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *structFlag.StructMapCheck) error {
+func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *structFlag.StructMapCheck) error {
 	if update.Message != nil {
 		IDchat := update.Message.Chat.ID
-		err := (*db).AddUsers(IDchat) //метод который добавляет пользователей по id
-		_ = err                       //отправить ошибку потом в main
+		err := (db).AddUsers(IDchat)
+		if err != nil {
+			return err
+		}
 
 		if _, ok := flag.IDPersonFlag[IDchat]; !ok {
 			flag.IDPersonFlag[IDchat] = &structFlag.BoolStruct{
 				CheckFlag: false,
 				DeletFlag: false,
 			}
-		} else {
-			if flag.IDPersonFlag[IDchat].CheckFlag == true {
-				text := update.Message.Text
-				flag.IDPersonFlag[IDchat].CheckFlag = false
-
-				errs := db.AddNote(IDchat, text)
-				_ = errs //вернуть ошибку в main
-
-				message := tg.NewMessage(update.Message.Chat.ID, "ваша заметка создана")
-				_, err := bot.Send(message)
-				if err != nil {
-					log.Println(err)
-				}
-
+		}
+		if update.Message.Text == "/start" {
+			err := ShowButton(bot, update, button.RowButton, "выберите действие")
+			if err != nil {
+				return err
 			}
 
-			if update.Message.Text == "/start" {
-				ShowButton(bot, update, button.RowButton, "выберите действие")
+		}
+		if flag.IDPersonFlag[IDchat].CheckFlag == true {
+			flag.IDPersonFlag[IDchat].CheckFlag = false
+			text := update.Message.Text
+
+			err := db.AddNote(IDchat, text)
+			if err != nil {
+				return err
+			}
+
+			message := tg.NewMessage(update.Message.Chat.ID, "ваша заметка создана")
+			_, err = bot.Send(message)
+			if err != nil {
+				return err
+			}
+			err = ShowButton(bot, update, button.RowButton, "выберите действие")
+			if err != nil {
+				return err
 			}
 		}
-		//if flag.IDPersonFlag[IDchat].DeletFlag == true {
-		//test(bot, update, GlobalStruct, IDchat) //засунуть туда метод для удаления из базы данных
-		//}
+
+		if flag.IDPersonFlag[IDchat].DeletFlag == true {
+			flag.IDPersonFlag[IDchat].DeletFlag = false
+			numberNote := update.Message.Text
+
+			errWrongNumber := db.DeletNote(IDchat, numberNote)
+			if errWrongNumber != nil {
+				message := tg.NewMessage(update.Message.Chat.ID, errWrongNumber.Error())
+				_, err := bot.Send(message)
+				if err != nil {
+					return err
+				}
+				err = ShowButton(bot, update, button.RowButton, "выберите действие")
+				return nil
+			}
+			message := tg.NewMessage(update.Message.Chat.ID, "ваша заметка удалена")
+			_, err := bot.Send(message)
+			if err != nil {
+				return err
+			}
+			err = ShowButton(bot, update, button.RowButton, "выберите действие")
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+
 	}
 	if update.CallbackQuery != nil {
 		IDbutton := update.CallbackQuery.Message.Chat.ID
+
+		if _, ok := flag.IDPersonFlag[IDbutton]; !ok {
+			flag.IDPersonFlag[IDbutton] = &structFlag.BoolStruct{
+				CheckFlag: false,
+				DeletFlag: false,
+			}
+		}
 
 		switch update.CallbackQuery.Data {
 		case "createNote":
@@ -58,30 +95,51 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db *storage.Storage, flag *st
 		case "showNote":
 			callback := tg.NewCallback(update.CallbackQuery.ID, "")
 			if _, err := bot.Request(callback); err != nil {
-				log.Println("Ошибка при отправке callback:", err)
+				return err
 			}
 			resultNotes, err := db.ShowNote(IDbutton)
-			_ = err
+			if err != nil {
+				return err
+			}
 
-			for i, v := range resultNotes {
-				retur := fmt.Sprintf("%v) %v", i, v.Not)
+			for _, v := range resultNotes {
+				retur := fmt.Sprintf("%v) %v", v.ID, v.Not)
 				sendBack := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, retur)
 				_, err := bot.Send(sendBack)
 				if err != nil {
-					log.Panic(err, "Ошибка в callbackHandler")
+					return err
 				}
+			}
+			err = ShowButton(bot, update, button.RowButton, "выберите действие")
+			if err != nil {
+				return err
+			}
+		case "deleteNote":
+			flag.IDPersonFlag[IDbutton].DeletFlag = true
+			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите номер заметки для удаления")
+			_, err := bot.Request(callback)
+			if err != nil {
+				return err
 			}
 		}
 	}
 	return nil
 }
-func ShowButton(bot *tg.BotAPI, update tg.Update, rowButton []tg.InlineKeyboardButton, text string) {
+func ShowButton(bot *tg.BotAPI, update tg.Update, rowButton []tg.InlineKeyboardButton, text string) error {
 	if update.Message != nil {
 		message := tg.NewMessage(update.Message.Chat.ID, text)
 		message.ReplyMarkup = tg.NewInlineKeyboardMarkup(rowButton)
 		_, err := bot.Send(message)
 		if err != nil {
-			log.Panic(err)
+			return err
+		}
+	} else if update.CallbackQuery != nil {
+		message2 := tg.NewMessage(update.CallbackQuery.Message.Chat.ID, text)
+		message2.ReplyMarkup = tg.NewInlineKeyboardMarkup(rowButton)
+		_, err := bot.Send(message2)
+		if err != nil {
+			return err
 		}
 	}
+	return nil
 }

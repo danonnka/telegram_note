@@ -20,9 +20,16 @@ func Run() {
 		IDPersonFlag: make(map[int64]*structFlag.BoolStruct),
 	}
 
-	logger := setupLogger("debug")                       //это запуск проверки err. Что бы писать log.___
-	cfg := config.MustLoad()                             // это путь к sql
-	db, err := storage.NewSqliteStorage(cfg.StoragePath) //создали базу данных черее Gorm
+	logger := setupLogger("debug")
+	cfg, err := config.MustLoad()
+	if err != nil {
+		logger.Error(err.Error())
+	}
+	//cfg.Token = "Write your token here"
+	db, err := storage.NewSqliteStorage(cfg.StoragePath)
+	if err != nil {
+		logger.Error(err.Error())
+	}
 	token := cfg.Token
 	bot, err := tg.NewBotAPI(token)
 	if err != nil {
@@ -34,14 +41,12 @@ func Run() {
 	u := tg.NewUpdate(0)
 
 	updates := bot.GetUpdatesChan(u)
-	var db1 storage.Storage = db // db1 = тип интерфейс со значениями структуры
 	for update := range updates {
-		err := handler.MainHandler(bot, update, &db1, IDFlag)
+		err := handler.MainHandler(bot, update, db, IDFlag)
 		if err != nil {
 			logger.Error(err.Error())
 		}
 	}
-
 }
 
 func setupLogger(env string) *slog.Logger {
