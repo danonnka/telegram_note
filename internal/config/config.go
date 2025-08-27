@@ -1,8 +1,8 @@
 package config
 
 import (
+	"fmt"
 	"github.com/ilyakaznacheev/cleanenv"
-	"log"
 	"os"
 )
 
@@ -11,14 +11,14 @@ type Config struct {
 	Token       string `env:"TOKEN"`
 }
 
-func MustLoad() *Config {
+func MustLoad() (*Config, error) {
 	configPath := "config/config.yaml"
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Fatalf("файл конфига не найден: %s", configPath)
+		return nil, fmt.Errorf("файл конфига не найден: %s", configPath)
 	}
 	var cfg Config
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-		log.Fatalf("ошибка чтения конфига: %s", err)
+		return nil, fmt.Errorf("ошибка чтения конфига: %s", err)
 	}
-	return &cfg
+	return &cfg, nil
 }

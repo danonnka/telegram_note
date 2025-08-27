@@ -4,12 +4,10 @@ type Users struct {
 	Id           int64   `gorm:"primaryKey"`
 	TelegramID   int64   `gorm:"uniqueIndex"`
 	ConnectNotes []Notes `gorm:"foreignKey:UserID"`
-} //думаю надо слайс заметок
-
-type Notes struct {
-	UserID int64  `gorm:"index;not null"` //нужен что бы установить связб между двумя таблицами
-	Not    string `gorm:"not null"`
 }
 
-// foreignKey (внешний ключ) — это связь между двумя таблицами.
-//Он указывает, какое поле в одной таблице связано с полем в другой таблице.
+type Notes struct {
+	ID     int64  `gorm:"primaryKey"`
+	UserID int64  `gorm:"index;not null"`
+	Not    string `gorm:"not null"`
+}
