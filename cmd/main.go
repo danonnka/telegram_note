@@ -1,39 +1,43 @@
 package main
 
 import (
+	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	_ "github.com/mattn/go-sqlite3"
 	"log/slog"
-	"myNote3/internal/config"
-	"myNote3/internal/handler"
-	"myNote3/internal/storage"
-	"myNote3/internal/structFlag"
 	"os"
+	"telegramNote/internal/config"
+	"telegramNote/internal/handler"
+	"telegramNote/internal/storage"
+	"telegramNote/internal/structFlag"
 )
 
 func main() {
-	Run()
+	cfg, err := config.MustLoad()
+	logger := setupLogger("debug")
+
+	err = Run(cfg)
+
+	if err != nil {
+		logger.Error(err.Error())
+	}
 }
 
-func Run() {
+func Run(cfg *config.Config) error {
 	IDFlag := &structFlag.StructMapCheck{
 		IDPersonFlag: make(map[int64]*structFlag.BoolStruct),
 	}
 
-	logger := setupLogger("debug")
-	cfg, err := config.MustLoad()
-	if err != nil {
-		logger.Error(err.Error())
-	}
 	//cfg.Token = "Write your token here"
+
 	db, err := storage.NewSqliteStorage(cfg.StoragePath)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
 	token := cfg.Token
 	bot, err := tg.NewBotAPI(token)
 	if err != nil {
-		logger.Error("ошибка при создание бота" + err.Error())
+		return fmt.Errorf("ошибка при создании бота: %w", err)
 	}
 
 	bot.Debug = false
@@ -44,9 +48,10 @@ func Run() {
 	for update := range updates {
 		err := handler.MainHandler(bot, update, db, IDFlag)
 		if err != nil {
-			logger.Error(err.Error())
+			return err
 		}
 	}
+	return nil
 }
 
 func setupLogger(env string) *slog.Logger {

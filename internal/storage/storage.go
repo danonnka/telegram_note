@@ -57,7 +57,7 @@ func (s SqliteStorage) AddNote(id int64, note string) error {
 	}
 
 	n := Notes{
-		UserID: us.Id,
+		UserID: us.ID,
 		Not:    note,
 	}
 
@@ -89,7 +89,7 @@ func (s SqliteStorage) DeletNote(id int64, numberNote string) error {
 	if err := s.db.First(&user, "telegram_id = ?", id).Error; err != nil {
 		return err
 	}
-	result := s.db.Where("user_id = ? AND id = ?", user.Id, number).Delete(&Notes{})
+	result := s.db.Where("user_id = ? AND id = ?", user.ID, number).Delete(&Notes{})
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("неверный номер заметки")
 	}

@@ -3,9 +3,9 @@ package handler
 import (
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"myNote3/internal/button"
-	"myNote3/internal/storage"
-	"myNote3/internal/structFlag"
+	"telegramNote/internal/button"
+	"telegramNote/internal/storage"
+	"telegramNote/internal/structFlag"
 )
 
 func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *structFlag.StructMapCheck) error {
@@ -18,8 +18,8 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 
 		if _, ok := flag.IDPersonFlag[IDchat]; !ok {
 			flag.IDPersonFlag[IDchat] = &structFlag.BoolStruct{
-				CheckFlag: false,
-				DeletFlag: false,
+				AddNoteFlag:   false,
+				DeletNoteFlag: false,
 			}
 		}
 		if update.Message.Text == "/start" {
@@ -29,8 +29,8 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 			}
 
 		}
-		if flag.IDPersonFlag[IDchat].CheckFlag == true {
-			flag.IDPersonFlag[IDchat].CheckFlag = false
+		if flag.IDPersonFlag[IDchat].AddNoteFlag == true {
+			flag.IDPersonFlag[IDchat].AddNoteFlag = false
 			text := update.Message.Text
 
 			err := db.AddNote(IDchat, text)
@@ -49,8 +49,8 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 			}
 		}
 
-		if flag.IDPersonFlag[IDchat].DeletFlag == true {
-			flag.IDPersonFlag[IDchat].DeletFlag = false
+		if flag.IDPersonFlag[IDchat].DeletNoteFlag == true {
+			flag.IDPersonFlag[IDchat].DeletNoteFlag = false
 			numberNote := update.Message.Text
 
 			errWrongNumber := db.DeletNote(IDchat, numberNote)
@@ -81,14 +81,14 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 
 		if _, ok := flag.IDPersonFlag[IDbutton]; !ok {
 			flag.IDPersonFlag[IDbutton] = &structFlag.BoolStruct{
-				CheckFlag: false,
-				DeletFlag: false,
+				AddNoteFlag:   false,
+				DeletNoteFlag: false,
 			}
 		}
 
 		switch update.CallbackQuery.Data {
 		case "createNote":
-			flag.IDPersonFlag[IDbutton].CheckFlag = true
+			flag.IDPersonFlag[IDbutton].AddNoteFlag = true
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите вашу заметку и отправьте")
 			_, _ = bot.Request(callback)
 
@@ -115,7 +115,7 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 				return err
 			}
 		case "deleteNote":
-			flag.IDPersonFlag[IDbutton].DeletFlag = true
+			flag.IDPersonFlag[IDbutton].DeletNoteFlag = true
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите номер заметки для удаления")
 			_, err := bot.Request(callback)
 			if err != nil {
