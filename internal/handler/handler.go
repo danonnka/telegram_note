@@ -6,9 +6,11 @@ import (
 	"telegramNote/internal/button"
 	"telegramNote/internal/storage"
 	"telegramNote/internal/structFlag"
+	"time"
 )
 
 func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *structFlag.StructMapCheck) error {
+
 	if update.Message != nil {
 		IDchat := update.Message.Chat.ID
 		err := (db).AddUsers(IDchat)
@@ -88,8 +90,16 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 
 		switch update.CallbackQuery.Data {
 		case "createNote":
-			flag.IDPersonFlag[IDbutton].AddNoteFlag = true
 			flag.IDPersonFlag[IDbutton].DeletNoteFlag = false
+			flag.IDPersonFlag[IDbutton].AddNoteFlag = true
+
+			go func(IDbutton int64) {
+				time.Sleep(time.Minute)
+				if flag.IDPersonFlag[IDbutton].AddNoteFlag {
+					flag.IDPersonFlag[IDbutton].AddNoteFlag = false
+				}
+			}(IDbutton)
+
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите вашу заметку и отправьте")
 			_, _ = bot.Request(callback)
 
@@ -120,6 +130,14 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 		case "deleteNote":
 			flag.IDPersonFlag[IDbutton].AddNoteFlag = false
 			flag.IDPersonFlag[IDbutton].DeletNoteFlag = true
+
+			go func(IDbutton int64) {
+				time.Sleep(time.Minute)
+				if flag.IDPersonFlag[IDbutton].DeletNoteFlag {
+					flag.IDPersonFlag[IDbutton].DeletNoteFlag = false
+				}
+			}(IDbutton)
+
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите номер заметки для удаления")
 			_, err := bot.Request(callback)
 			if err != nil {
