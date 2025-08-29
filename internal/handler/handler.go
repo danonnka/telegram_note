@@ -89,10 +89,13 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 		switch update.CallbackQuery.Data {
 		case "createNote":
 			flag.IDPersonFlag[IDbutton].AddNoteFlag = true
+			flag.IDPersonFlag[IDbutton].DeletNoteFlag = false
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите вашу заметку и отправьте")
 			_, _ = bot.Request(callback)
 
 		case "showNote":
+			flag.IDPersonFlag[IDbutton].AddNoteFlag = false
+			flag.IDPersonFlag[IDbutton].DeletNoteFlag = false
 			callback := tg.NewCallback(update.CallbackQuery.ID, "")
 			if _, err := bot.Request(callback); err != nil {
 				return err
@@ -115,6 +118,7 @@ func MainHandler(bot *tg.BotAPI, update tg.Update, db storage.Storage, flag *str
 				return err
 			}
 		case "deleteNote":
+			flag.IDPersonFlag[IDbutton].AddNoteFlag = false
 			flag.IDPersonFlag[IDbutton].DeletNoteFlag = true
 			callback := tg.NewCallback(update.CallbackQuery.ID, "напишите номер заметки для удаления")
 			_, err := bot.Request(callback)
