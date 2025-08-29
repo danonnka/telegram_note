@@ -1,7 +1,7 @@
 package storage
 
 type Users struct {
-	Id           int64   `gorm:"primaryKey"`
+	ID           int64   `gorm:"primaryKey"`
 	TelegramID   int64   `gorm:"uniqueIndex"`
 	ConnectNotes []Notes `gorm:"foreignKey:UserID"`
 }
